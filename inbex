@@ -1,0 +1,1811 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="امتحان اللغة العربية - جامعة صنعاء">
+    <title>امتحان اللغة العربية - جامعة صنعاء</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        /* تحسينات CSS */
+        /* تم إضافة تحسينات للوصول والإمكانية */
+        :focus {
+            outline: 3px solid var(--secondary-color);
+            outline-offset: 2px;
+        }
+
+        .skip-link {
+            position: absolute;
+            top: -40px;
+            right: 0;
+            background: var(--primary-color);
+            color: white;
+            padding: 8px;
+            z-index: 9999;
+            text-decoration: none;
+        }
+
+        .skip-link:focus {
+            top: 0;
+        }
+
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
+    </style>
+</head>
+<body>
+    <!-- رابط تخطي للمحتوى الرئيسي للمستخدمين ذوي الاحتياجات الخاصة -->
+    <a href="#main-content" class="skip-link">تخطي إلى المحتوى الرئيسي</a>
+
+    <!-- زر العودة إلى الأعلى -->
+    <button id="scrollTopBtn" class="scroll-top-btn" aria-label="العودة إلى الأعلى">
+        <i class="fas fa-arrow-up"></i>
+    </button>
+
+    <!-- شريط التنقل -->
+    <nav class="navbar" role="navigation" aria-label="التنقل الرئيسي">
+        <div class="nav-container">
+            <div class="logo">
+                <h1><i class="fas fa-university" aria-hidden="true"></i> ملتقى الطالب الجامعي</h1>
+                <p>جامعة صنعاء - كلية الإعلام</p>
+            </div>
+            <div class="nav-controls">
+                <button id="darkModeToggle" class="icon-btn" title="الوضع الليلي" aria-label="تبديل الوضع الليلي">
+                    <i class="fas fa-moon"></i>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- المحتوى الرئيسي -->
+    <main id="main-content" class="container" role="main">
+        <!-- شاشة البداية -->
+        <section id="startScreen" class="screen active" aria-labelledby="startHeading">
+            <!-- ... (المحتوى الأصلي يبقى كما هو) ... -->
+        </section>
+
+        <!-- شاشة الامتحان -->
+        <section id="examScreen" class="screen" aria-labelledby="examHeading" hidden>
+            <!-- ... (المحتوى الأصلي يبقى كما هو) ... -->
+        </section>
+
+        <!-- شاشة النتائج -->
+        <section id="resultsScreen" class="screen" aria-labelledby="resultsHeading" hidden>
+            <!-- ... (المحتوى الأصلي يبقى كما هو) ... -->
+        </section>
+    </main>
+
+    <!-- تذييل الصفحة -->
+    <footer class="footer" role="contentinfo">
+        <!-- ... (المحتوى الأصلي يبقى كما هو) ... -->
+    </footer>
+
+    <!-- نافذة التأكيد -->
+    <div id="confirmModal" class="modal" role="dialog" aria-labelledby="modalTitle" aria-modal="true" hidden>
+        <!-- ... (المحتوى الأصلي يبقى كما هو) ... -->
+    </div>
+
+    <!-- نافذة الأخطاء -->
+    <div id="errorModal" class="modal" role="alertdialog" aria-labelledby="errorTitle" aria-modal="true" hidden>
+        <div class="modal-content">
+            <h3 id="errorTitle"><i class="fas fa-exclamation-triangle"></i> حدث خطأ</h3>
+            <p id="errorMessage" style="color: var(--text-color); margin-bottom: 1.5rem;"></p>
+            <div class="modal-buttons">
+                <button id="closeErrorBtn" class="btn primary-btn">
+                    <i class="fas fa-times"></i> إغلاق
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- مؤشر التحميل -->
+    <div id="loadingIndicator" class="modal" hidden>
+        <div class="modal-content">
+            <div style="text-align: center; padding: 2rem;">
+                <div class="spinner" style="width: 50px; height: 50px; border: 5px solid var(--light-color); border-top: 5px solid var(--secondary-color); border-radius: 50%; margin: 0 auto 1rem; animation: spin 1s linear infinite;"></div>
+                <p style="color: var(--text-color);">جاري التحميل...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ============================================
+        // 1. إصلاح الأخطاء المنطقية
+        // ============================================
+
+        // ثوابت التطبيق
+        const TOTAL_QUESTIONS_IN_DB = 120;
+        const QUESTIONS_TO_SELECT = 30;
+        const EXAM_DURATION = 60 * 60; // 60 دقيقة بالثواني
+
+        // متغيرات التطبيق مع قيم افتراضية
+        let currentQuestionIndex = 0;
+        let userAnswers = [];
+        let startTime = null;
+        let timerInterval = null;
+        let timeLeft = EXAM_DURATION;
+        let examCompleted = false;
+        let currentQuestions = [];
+        let shuffledQuestions = [];
+        let questionCache = new Map(); // ذاكرة تخزين مؤقت للأسئلة
+
+        // عناصر DOM
+        const screens = {
+            start: document.getElementById('startScreen'),
+            exam: document.getElementById('examScreen'),
+            results: document.getElementById('resultsScreen')
+        };
+
+        // ============================================
+        // 2. تحسين الأداء والذاكرة
+        // ============================================
+
+        // ذاكرة تخزين مؤقت محسنة
+        class QuestionCache {
+            constructor(maxSize = 50) {
+                this.cache = new Map();
+                this.maxSize = maxSize;
+                this.keys = [];
+            }
+
+            set(key, value) {
+                if (this.cache.size >= this.maxSize) {
+                    const oldestKey = this.keys.shift();
+                    this.cache.delete(oldestKey);
+                }
+                this.cache.set(key, value);
+                this.keys.push(key);
+            }
+
+            get(key) {
+                return this.cache.get(key);
+            }
+
+            clear() {
+                this.cache.clear();
+                this.keys = [];
+            }
+        }
+
+        const optionCache = new QuestionCache();
+
+        // دالة خلط محسنة باستخدام Fisher-Yates
+        function shuffleArray(array) {
+            const newArray = [...array];
+            let currentIndex = newArray.length;
+            let randomIndex, temporaryValue;
+
+            while (currentIndex !== 0) {
+                randomIndex = Math.floor(Math.random() * currentIndex);
+                currentIndex--;
+
+                temporaryValue = newArray[currentIndex];
+                newArray[currentIndex] = newArray[randomIndex];
+                newArray[randomIndex] = temporaryValue;
+            }
+
+            return newArray;
+        }
+
+        // اختيار الأسئلة بشكل عشوائي مع تجنب التكرار في الجلسة الواحدة
+        function selectRandomQuestions() {
+            try {
+                // احصل على جميع الأسئلة
+                let availableQuestions = [...quizQuestions];
+                
+                // خلط جميع الأسئلة
+                availableQuestions = shuffleArray(availableQuestions);
+                
+                // اختر 30 سؤالاً فقط
+                currentQuestions = availableQuestions.slice(0, QUESTIONS_TO_SELECT);
+                
+                // تهيئة إجابات المستخدم
+                userAnswers = new Array(currentQuestions.length).fill(null);
+                
+                // تنظيف الذاكرة المؤقتة
+                optionCache.clear();
+                
+                return true;
+            } catch (error) {
+                showError('حدث خطأ في تحميل الأسئلة', error);
+                return false;
+            }
+        }
+
+        // تحسين دالة خلط الخيارات
+        function shuffleAllOptions() {
+            shuffledQuestions = currentQuestions.map((question, index) => {
+                if (question.type === 'multiple') {
+                    const cacheKey = `q${question.id}_options`;
+                    const cached = optionCache.get(cacheKey);
+                    
+                    if (cached) return cached;
+
+                    const optionsCopy = [...question.options];
+                    const correctAnswer = question.answer;
+                    
+                    // خلط الخيارات
+                    for (let i = optionsCopy.length - 1; i > 0; i--) {
+                        const j = Math.floor(Math.random() * (i + 1));
+                        [optionsCopy[i], optionsCopy[j]] = [optionsCopy[j], optionsCopy[i]];
+                    }
+                    
+                    const result = {
+                        ...question,
+                        shuffledOptions: optionsCopy,
+                        shuffledCorrect: optionsCopy.indexOf(correctAnswer),
+                        originalIndex: index
+                    };
+                    
+                    optionCache.set(cacheKey, result);
+                    return result;
+                } else {
+                    // أسئلة الصح والخطأ
+                    return {
+                        ...question,
+                        shuffledOptions: ['صح', 'خطأ'],
+                        shuffledCorrect: question.answer === 'صح' ? 0 : 1,
+                        originalIndex: index
+                    };
+                }
+            });
+        }
+
+        // ============================================
+        // 3. تحسين تجربة المستخدم
+        // ============================================
+
+        // إظهار مؤشر التحميل
+        function showLoading(message = 'جاري التحميل...') {
+            const indicator = document.getElementById('loadingIndicator');
+            const messageEl = indicator.querySelector('p');
+            messageEl.textContent = message;
+            indicator.hidden = false;
+        }
+
+        // إخفاء مؤشر التحميل
+        function hideLoading() {
+            document.getElementById('loadingIndicator').hidden = true;
+        }
+
+        // حفظ التقدم تلقائياً
+        function autoSaveProgress() {
+            try {
+                const progress = {
+                    currentQuestionIndex,
+                    userAnswers,
+                    timeLeft,
+                    currentQuestions: currentQuestions.map(q => q.id),
+                    startTime: startTime ? startTime.getTime() : null
+                };
+                localStorage.setItem('examAutoSave', JSON.stringify(progress));
+            } catch (error) {
+                console.warn('فشل الحفظ التلقائي:', error);
+            }
+        }
+
+        // محاولة استعادة التقدم
+        function tryRestoreProgress() {
+            try {
+                const saved = localStorage.getItem('examAutoSave');
+                if (saved) {
+                    const progress = JSON.parse(saved);
+                    
+                    // التحقق من صحة البيانات المحفوظة
+                    if (progress.userAnswers && 
+                        progress.currentQuestions && 
+                        progress.timeLeft > 0) {
+                        
+                        return progress;
+                    }
+                }
+            } catch (error) {
+                console.warn('فشل استعادة التقدم:', error);
+            }
+            return null;
+        }
+
+        // تنظيف الحفظ التلقائي
+        function clearAutoSave() {
+            localStorage.removeItem('examAutoSave');
+        }
+
+        // ============================================
+        // 4. إضافة معالجة الأخطاء
+        // ============================================
+
+        // نظام معالجة الأخطاء المركزية
+        class ErrorHandler {
+            static showError(message, error = null) {
+                console.error(message, error);
+                
+                const errorModal = document.getElementById('errorModal');
+                const errorMessage = document.getElementById('errorMessage');
+                
+                errorMessage.textContent = message + (error ? `: ${error.message}` : '');
+                errorModal.hidden = false;
+                
+                // إضافة إمكانية إغلاق النافذة
+                const closeBtn = document.getElementById('closeErrorBtn');
+                closeBtn.onclick = () => errorModal.hidden = true;
+                
+                // إغلاق عند النقر خارج النافذة
+                errorModal.onclick = (e) => {
+                    if (e.target === errorModal) errorModal.hidden = true;
+                };
+            }
+            
+            static wrapFunction(func, context) {
+                return function(...args) {
+                    try {
+                        return func.apply(this, args);
+                    } catch (error) {
+                        ErrorHandler.showError(`خطأ في ${context}`, error);
+                        return null;
+                    }
+                };
+            }
+        }
+
+    // قاعدة بيانات الأسئلة للغة العربية
+        const quizQuestions = [
+            // الأخطاء النحوية (1-10)
+            {
+                id: 1,
+                type: 'multiple',
+                question: 'الصواب في استخدام "ال" مع كلمة "غير" هو قول:',
+                options: [
+                    'الغير مناسب',
+                    'غير المناسب',
+                    'غير مناسباً'
+                ],
+                answer: 'غير المناسب',
+                explanation: 'كلمة "غير" اسم ملازم للإضافة، فلا تقبل "ال" التعريف'
+            },
+            {
+                id: 2,
+                type: 'truefalse',
+                question: 'يُعد تعبير "حاز على الجائزة" تعبيراً صحيحاً فصيحاً.',
+                answer: 'خطأ',
+                explanation: 'الصواب: "حاز الجائزة" لأن الفعل "حاز" لا يتعدى بحرف الجر'
+            },
+            {
+                id: 3,
+                type: 'multiple',
+                question: 'عند استخدام "كلما" في جملة الشرط، الصواب هو:',
+                options: [
+                    'تكرارها (كلما... كلما)',
+                    'ذكرها مرة واحدة في البداية',
+                    'حذفها تماماً'
+                ],
+                answer: 'ذكرها مرة واحدة في البداية'
+            },
+            {
+                id: 4,
+                type: 'truefalse',
+                question: 'يُقال "اعتاد على التفوق" والصواب نحويًا "اعتاد التفوق".',
+                answer: 'صح'
+            },
+            {
+                id: 5,
+                type: 'multiple',
+                question: 'الصواب في الفعل "استبدل" هو أن تدخل الباء على:',
+                options: [
+                    'الشيء المأخوذ',
+                    'الشيء المتروك (القديم)',
+                    'الفاعل'
+                ],
+                answer: 'الشيء المتروك (القديم)'
+            },
+            {
+                id: 6,
+                type: 'truefalse',
+                question: 'يُعد قول "أجرى الباحث دراساتٍ معمقةٍ" صحيحاً بتنوين الكسر في "معمقة".',
+                answer: 'خطأ',
+                explanation: 'الصواب: "معمقةً" (تنوين النصب لأنها حال)'
+            },
+            {
+                id: 7,
+                type: 'multiple',
+                question: 'يُقال في الأخبار "كشفت مصادر عن اعتزام..." والصواب:',
+                options: [
+                    'كشفت مصادر اعتزام',
+                    'كشفت مصادر باعتزام',
+                    'كشفت مصادر في اعتزام'
+                ],
+                answer: 'كشفت مصادر باعتزام'
+            },
+            {
+                id: 8,
+                type: 'truefalse',
+                question: 'تعبير "بالرغم من" يُفضل استبداله بكلمة "رغم" أو "على الرغم".',
+                answer: 'صح'
+            },
+            {
+                id: 9,
+                type: 'multiple',
+                question: 'عند نداء الأسماء، يُقال:',
+                options: [
+                    'يسمى ماجدٌ',
+                    'يسمى ماجداً',
+                    'يسمى ماجدٍ'
+                ],
+                answer: 'يسمى ماجداً'
+            },
+            {
+                id: 10,
+                type: 'truefalse',
+                question: 'كلمة "غير" لا تقبل "ال" التعريف لأنها اسم ملازم للإضافة.',
+                answer: 'صح'
+            },
+
+            // الإعراب والبناء (11-20)
+            {
+                id: 11,
+                type: 'multiple',
+                question: 'العلم الذي يبحث في أصول تركيب الجملة وتفاعل الكلمات داخلها هو:',
+                options: [
+                    'الصرف',
+                    'النحو',
+                    'الدلالة'
+                ],
+                answer: 'النحو'
+            },
+            {
+                id: 12,
+                type: 'truefalse',
+                question: 'جميع الحروف في اللغة العربية مبنية دائماً.',
+                answer: 'صح'
+            },
+            {
+                id: 13,
+                type: 'multiple',
+                question: '"البناء" هو لزوم اللفظ حالة واحدة لا تتغير مهما اختلف موقعه في:',
+                options: [
+                    'المعجم',
+                    'الجملة',
+                    'البيت الشعري'
+                ],
+                answer: 'الجملة'
+            },
+            {
+                id: 14,
+                type: 'truefalse',
+                question: 'الفعل الماضي مبني دائماً.',
+                answer: 'صح'
+            },
+            {
+                id: 15,
+                type: 'multiple',
+                question: 'تُقدر الحركات الإعرابية للثقل في الفعل المنتهي بـ:',
+                options: [
+                    'الألف',
+                    'الياء أو الواو',
+                    'الهمزة'
+                ],
+                answer: 'الياء أو الواو'
+            },
+            {
+                id: 16,
+                type: 'truefalse',
+                question: 'الإعراب المحلي خاص بالجمل وشبه الجمل.',
+                answer: 'صح'
+            },
+            {
+                id: 17,
+                type: 'multiple',
+                question: 'علامة الرفع الفرعية في الأسماء الخمسة هي:',
+                options: [
+                    'الألف',
+                    'الواو',
+                    'ثبوت النون'
+                ],
+                answer: 'الواو'
+            },
+            {
+                id: 18,
+                type: 'truefalse',
+                question: 'الجر خاص بالأسماء والجزم خاص بالأفعال.',
+                answer: 'صح'
+            },
+            {
+                id: 19,
+                type: 'multiple',
+                question: 'يُبنى الفعل المضارع إذا اتصلت به:',
+                options: [
+                    'نون النسوة أو نون التوكيد',
+                    'تاء الفاعل',
+                    'ألف الاثنين'
+                ],
+                answer: 'نون النسوة أو نون التوكيد'
+            },
+            {
+                id: 20,
+                type: 'truefalse',
+                question: 'النحو الحديث يعتبر الجملة التي فيها فعل "جملة فعلية" بغض النظر عن موقعه.',
+                answer: 'صح'
+            },
+
+            // الممنوع من الصرف (21-30)
+            {
+                id: 21,
+                type: 'multiple',
+                question: 'الممنوع من الصرف هو الاسم الذي:',
+                options: [
+                    'لا يُنون ويُجر بالكسرة',
+                    'لا يُنون ويُجر بالفتحة',
+                    'يُنون ويُجر بالفتحة'
+                ],
+                answer: 'لا يُنون ويُجر بالفتحة'
+            },
+            {
+                id: 22,
+                type: 'truefalse',
+                question: 'يُمنع العلم من الصرف إذا كان "مفرداً" (غير مضاف ولا معرف بـ ال).',
+                answer: 'صح'
+            },
+            {
+                id: 23,
+                type: 'multiple',
+                question: 'يُجر الممنوع من الصرف بالكسرة إذا:',
+                options: [
+                    'كان نكرة',
+                    'عُرف بـ "ال" أو أُضيف',
+                    'كان علماً أعجمياً'
+                ],
+                answer: 'عُرف بـ "ال" أو أُضيف'
+            },
+            {
+                id: 24,
+                type: 'truefalse',
+                question: 'كلمة "بغداد" تمنع من الصرف لأنها علم أعجمي أو مؤنث زائد عن 3 أحرف.',
+                answer: 'صح'
+            },
+            {
+                id: 25,
+                type: 'multiple',
+                question: 'الأسماء (عثمان، مهدان، سكران) منعت من الصرف لوجود:',
+                options: [
+                    'الهمزة',
+                    'الألف والنون الزائدتين',
+                    'التضعيف'
+                ],
+                answer: 'الألف والنون الزائدتين'
+            },
+            {
+                id: 26,
+                type: 'truefalse',
+                question: 'يُمنع العلم "أحمد" من الصرف لأنه على وزن الفعل.',
+                answer: 'صح'
+            },
+            {
+                id: 27,
+                type: 'multiple',
+                question: 'صيغ منتهى الجموع هي كل جمع تكسير بعد ألف تكسيره:',
+                options: [
+                    'حرف واحد',
+                    'حرفان أو ثلاثة',
+                    'أربعة أحرف'
+                ],
+                answer: 'حرفان أو ثلاثة'
+            },
+            {
+                id: 28,
+                type: 'truefalse',
+                question: 'الاسم المقصور (مثل ليلى) لا يتأثر بنظرية المفرد لأن حركته مقدرة للتعذر.',
+                answer: 'صح'
+            },
+            {
+                id: 29,
+                type: 'multiple',
+                question: 'تمنع الصفة على وزن "أفعل" من الصرف مثل:',
+                options: [
+                    'كريم',
+                    'أحسن',
+                    'عظيم'
+                ],
+                answer: 'أحسن'
+            },
+            {
+                id: 30,
+                type: 'truefalse',
+                question: 'كلمة "عُمر" تمنع من الصرف لأنها علم معدول عن "عامر" حسب النحاة.',
+                answer: 'صح'
+            },
+
+            // إن وأخواتها (31-40)
+            {
+                id: 31,
+                type: 'multiple',
+                question: '"ليت" حرف مركب من:',
+                options: [
+                    'لـ + أيت',
+                    'لا + أيت',
+                    'لن + أيت'
+                ],
+                answer: 'لـ + أيت'
+            },
+            {
+                id: 32,
+                type: 'truefalse',
+                question: 'إن وأخواتها تدخل على الجملة الاسمية فتنصب الخبر..',
+                answer: 'خطأ',
+                explanation: 'تنصب المبتدأ  '
+            },
+            {
+                id: 33,
+                type: 'multiple',
+                question: '"لعل" حرف ناسخ أصله اللغوي:',
+                options: [
+                    'لـ + عل',
+                    'لن + عل',
+                    'لا + عل'
+                ],
+                answer: 'لـ + عل'
+            },
+            {
+                id: 34,
+                type: 'truefalse',
+                question: 'يجوز تقديم خبر "إن" على اسمها إذا كان شبه جملة.',
+                answer: 'صح'
+            },
+            {
+                id: 35,
+                type: 'multiple',
+                question: 'نون الوقاية تدخل على "ليت" فيُقال غالباً:',
+                options: [
+                    'ليتي',
+                    'ليتني',
+                    'ليتنني'
+                ],
+                answer: 'ليتني'
+            },
+            {
+                id: 36,
+                type: 'truefalse',
+                question: '"كأن" مركبة من كاف التشبيه و"أنّ".',
+                answer: 'صح'
+            },
+            {
+                id: 37,
+                type: 'multiple',
+                question: 'خبر إن في قوله {إن مع العسر يسراً} هو:',
+                options: [
+                    'يسراً',
+                    'مع العسر (شبه جملة)',
+                    'ضمير مستتر'
+                ],
+                answer: 'مع العسر (شبه جملة)'
+            },
+            {
+                id: 38,
+                type: 'truefalse',
+                question: '"لكنّ" مركبة من "لا" و"كأن".',
+                answer: 'خطأ',
+                explanation: 'مركبة من أداة تنبيه + إن'
+            },
+            {
+                id: 39,
+                type: 'multiple',
+                question: 'تعمل إن وأخواتها في الجملة:',
+                options: [
+                    'الفعلية',
+                    'الاسمية',
+                    'شبه الجملة'
+                ],
+                answer: 'الاسمية'
+            },
+            {
+                id: 40,
+                type: 'truefalse',
+                question: 'يجوز في اللغة "إني" و"إنني" حسب اختلاف اللهجات.',
+                answer: 'صح'
+            },
+
+            // نظام التعدية في النحو العربي (41-50)
+            {
+                id: 41,
+                type: 'multiple',
+                question: 'الفعل الذي يكتفي بفاعله ولا يحتاج لمفعول به يسمى:',
+                options: [
+                    'متعدياً',
+                    'لازماً',
+                    'ناقصاً'
+                ],
+                answer: 'لازماً'
+            },
+            {
+                id: 42,
+                type: 'truefalse',
+                question: 'يمكن تعدية الفعل اللازم بزيادة همزة في أوله (مثل: أكرم).',
+                answer: 'صح'
+            },
+            {
+                id: 43,
+                type: 'multiple',
+                question: 'الفعل "أعلم" يتعدى لـ:',
+                options: [
+                    'مفعول واحد',
+                    'مفعولين',
+                    'ثلاثة مفاعيل'
+                ],
+                answer: 'ثلاثة مفاعيل'
+            },
+            {
+                id: 44,
+                type: 'truefalse',
+                question: 'حروف التعدية في اللغة السبئية القديمة هي "الهاء" مثل (هريقوا).',
+                answer: 'صح'
+            },
+            {
+                id: 45,
+                type: 'multiple',
+                question: 'الفعل "رأى" ينصب مفعولين إذا كانت الرؤية:',
+                options: [
+                    'بصرية حسية',
+                    'قلبية ذهنية',
+                    'منامية'
+                ],
+                answer: 'قلبية ذهنية'
+            },
+            {
+                id: 46,
+                type: 'truefalse',
+                question: 'الشين هي حرف التعدية في اللغة الحضرمية والأكدية.',
+                answer: 'صح'
+            },
+            {
+                id: 47,
+                type: 'multiple',
+                question: 'أفعال التحويل (مثل: جعل، صيّر) تنصب:',
+                options: [
+                    'مفعولاً واحداً',
+                    'مفعولين أصلهما مبتدأ وخبر',
+                    'لا تنصب مفاعيل'
+                ],
+                answer: 'مفعولين أصلهما مبتدأ وخبر'
+            },
+            {
+                id: 48,
+                type: 'truefalse',
+                question: 'الفعل "حاز" يتعدى بنفسه ولا يحتاج لحرف الجر "على".',
+                answer: 'صح'
+            },
+            {
+                id: 49,
+                type: 'multiple',
+                question: 'وسيلة التعدية في "درّس" هي:',
+                options: [
+                    'الهمزة',
+                    'التضعيف (تشديد العين)',
+                    'زيادة الألف'
+                ],
+                answer: 'التضعيف (تشثير العين)'
+            },
+            {
+                id: 50,
+                type: 'truefalse',
+                question: 'الفعل "وجد" ينصب مفعولين إذا كان بمعنى "عثر على شيء مادي".',
+                answer: 'خطأ',
+                explanation: 'في هذه الحالة يعرب الثاني حالاً وليس مفعولاً ثانياً'
+            },
+
+            // الأخطاء الدلالية (51-60)
+            {
+                id: 51,
+                type: 'multiple',
+                question: 'كلمة "توأم" في اللغة تعني:',
+                options: [
+                    'فرداً واحداً',
+                    'اثنين',
+                    'ثلاثة'
+                ],
+                answer: 'اثنين'
+            },
+            {
+                id: 52,
+                type: 'truefalse',
+                question: 'قول "امرأة تنجب توأمين" يعني أنها أنجبت أربعة أطفال.',
+                answer: 'صح'
+            },
+            {
+                id: 53,
+                type: 'multiple',
+                question: '"معنى المعنى" للفعل "ضرب" في (ضرب في الأرض) هو:',
+                options: [
+                    'أوجع',
+                    'سافر',
+                    'خفق'
+                ],
+                answer: 'سافر'
+            },
+            {
+                id: 54,
+                type: 'truefalse',
+                question: 'يُعد تعبير "الأحبال الصوتية" صحيحاً دلالياً.',
+                answer: 'خطأ',
+                explanation: 'الصواب: "الوتران الصوتيان"'
+            },
+            {
+                id: 55,
+                type: 'multiple',
+                question: 'المثلثات اللغوية (مثل قَسط، قِسط، قُسط) يتغير معناها بتغير:',
+                options: [
+                    'عدد حروفها',
+                    'حركتها الإعرابية',
+                    'ترتيب حروفها'
+                ],
+                answer: 'حركتها الإعرابية'
+            },
+            {
+                id: 56,
+                type: 'truefalse',
+                question: 'الحشو هو زيادة في المبنى لا يقابلها زيادة في المعنى.',
+                answer: 'صح'
+            },
+            {
+                id: 57,
+                type: 'multiple',
+                question: 'تعبير "التهاني القلبية" يُعد من قبيل:',
+                options: [
+                    'الإيجاز',
+                    'الحشو',
+                    'التفاصح'
+                ],
+                answer: 'الحشو'
+            },
+            {
+                id: 58,
+                type: 'truefalse',
+                question: 'قولنا "تعادل الفريقان بهدفين لكل منهما" يحتوي على حشو.',
+                answer: 'صح'
+            },
+            {
+                id: 59,
+                type: 'multiple',
+                question: 'الصواب في ترجمة "I am as a writer" هو:',
+                options: [
+                    'أنا ككاتب',
+                    'أنا بصفتي كاتباً',
+                    'أنا مثل كاتب'
+                ],
+                answer: 'أنا بصفتي كاتباً'
+            },
+            {
+                id: 60,
+                type: 'truefalse',
+                question: 'كلمة "قَسط" بفتح القاف تعني العدل.',
+                answer: 'خطأ',
+                explanation: 'تعني الظلم (قِسط بكسر القاف تعني العدل)'
+            },
+
+            // التفاصح (61-70)
+            {
+                id: 61,
+                type: 'multiple',
+                question: 'التفاصح هو ظاهرة لغوية ناتجة عن:',
+                options: [
+                    'الجهل باللغة',
+                    'توهم المتكلم أن لغته غير فصيحة فيحاول "تفصيحها" خطأً',
+                    'الرغبة في التحدث بالعامية'
+                ],
+                answer: 'توهم المتكلم أن لغته غير فصيحة فيحاول "تفصيحها" خطأً'
+            },
+            {
+                id: 62,
+                type: 'truefalse',
+                question: 'نطق "السين" ثاءً (مثل: يتثنى بدلاً من يتسنى) يُعد من التفاصح الصوتي.',
+                answer: 'صح'
+            },
+            {
+                id: 63,
+                type: 'multiple',
+                question: 'من التفاصح الصرفي "همز ما لا يهمز" مثل قول:',
+                options: [
+                    'مارب',
+                    'مأرب',
+                    'ميرب'
+                ],
+                answer: 'مأرب'
+            },
+            {
+                id: 64,
+                type: 'truefalse',
+                question: 'الصواب في وصف الشريعة قولنا "الشريعة السمحاء".',
+                answer: 'خطأ',
+                explanation: 'الصواب: "السمحة" لأن صيغة فعلى للمبالغة لا تصلح للعلم المؤنث'
+            },
+            {
+                id: 65,
+                type: 'multiple',
+                question: 'القاعدة في العدد (11-19) هي البناء على:',
+                options: [
+                    'السكون',
+                    'فتح الجزأين',
+                    'الضم'
+                ],
+                answer: 'فتح الجزأين'
+            },
+            {
+                id: 66,
+                type: 'truefalse',
+                question: 'جر الممنوع من الصرف بالكسرة (مثل: في مناطقٍ) يُعد من أخطاء التفاصح.',
+                answer: 'صح'
+            },
+            {
+                id: 67,
+                type: 'multiple',
+                question: 'نطق "مشايخ" بالهمزة "مشائخ" هو:',
+                options: [
+                    'صواب فصيح',
+                    'خطأ تفاصحي',
+                    'لهجة قديمة'
+                ],
+                answer: 'خطأ تفاصحي'
+            },
+            {
+                id: 68,
+                type: 'truefalse',
+                question: 'التفاصح قد يكون في النطق وقد يكون في الكتابة.',
+                answer: 'صح'
+            },
+            {
+                id: 69,
+                type: 'multiple',
+                question: 'نطق "الزاي" ذالاً (مثل: ذبيب بدلاً من زبيب) هو خطأ:',
+                options: [
+                    'نحوي',
+                    'صوتي',
+                    'دلالي'
+                ],
+                answer: 'صوتي'
+            },
+            {
+                id: 70,
+                type: 'truefalse',
+                question: 'الصواب هو "مشايخ" و"معايب" و"مصايد" بالياء لا بالهمزة.',
+                answer: 'صح'
+            },
+
+            // مقدمة (تاريخ التدوين) (71-80)
+            {
+                id: 71,
+                type: 'multiple',
+                question: 'تدوين القرآن وصناعة المصحف في عهد عثمان بن عفان كان في عام:',
+                options: [
+                    '15 هـ',
+                    '25 هـ',
+                    '35 هـ'
+                ],
+                answer: '25 هـ'
+            },
+            {
+                id: 72,
+                type: 'truefalse',
+                question: 'يُعتبر تدوين القرآن أعظم مشروع استراتيجي لأنه حفظ النص من التحريف.',
+                answer: 'صح'
+            },
+            {
+                id: 73,
+                type: 'multiple',
+                question: 'مخترعو الكتابة الأوائل هم:',
+                options: [
+                    'الفينيقيون',
+                    'السومريون (الشومريون)',
+                    'الرومان'
+                ],
+                answer: 'السومريون (الشومريون)'
+            },
+            {
+                id: 74,
+                type: 'truefalse',
+                question: '"الشومريون" هم قبائل يمنية هاجرت واستوطنت العراق.',
+                answer: 'صح'
+            },
+            {
+                id: 75,
+                type: 'multiple',
+                question: 'اعتمدت لجنة تدوين المصحف لغة:',
+                options: [
+                    'تميم',
+                    'قريش',
+                    'حمير'
+                ],
+                answer: 'قريش'
+            },
+            {
+                id: 76,
+                type: 'truefalse',
+                question: 'نظام الإملاء في المصحف كان مزيجاً من الإملاء اليمني والعراقي السوري.',
+                answer: 'صح'
+            },
+            {
+                id: 77,
+                type: 'multiple',
+                question: 'اقترح المصدر مصطلح "اللغات النوحية" كبديل لمصطلح:',
+                options: [
+                    'اللغات السامية',
+                    'اللغات الحامية',
+                    'اللغات الآرية'
+                ],
+                answer: 'اللغات السامية'
+            },
+            {
+                id: 78,
+                type: 'truefalse',
+                question: 'كانت نسبة الأمية في المجتمعات القديمة قبل الإسلام تتجاوز 80%.',
+                answer: 'صح'
+            },
+            {
+                id: 79,
+                type: 'multiple',
+                question: 'المرحلة الأولى من مراحل الكتابة هي:',
+                options: [
+                    'الرموز',
+                    'التصوير',
+                    'المقاطع'
+                ],
+                answer: 'التصوير'
+            },
+            {
+                id: 80,
+                type: 'truefalse',
+                question: 'الخط العربي في أصله مأخوذ من الخط الآرامي النبطي.',
+                answer: 'صح'
+            },
+
+            // الإملاء وعلوم اللغة (81-90)
+            {
+                id: 81,
+                type: 'multiple',
+                question: 'تكتب الهمزة المتوسطة قبل الضمير على الواو (مثل: أصدقاؤنا) في حالة:',
+                options: [
+                    'النصب',
+                    'الرفع',
+                    'الجر'
+                ],
+                answer: 'الرفع'
+            },
+            {
+                id: 82,
+                type: 'truefalse',
+                question: 'يتحدد شكل الألف في نهاية الفعل (ممدودة أو مقصورة) بحسب أصله الصرفي.',
+                answer: 'صح'
+            },
+            {
+                id: 83,
+                type: 'multiple',
+                question: 'القاعدة "الذهبية" الأولى في الإملاء هي اعتماد شكل الحرف بناءً على:',
+                options: [
+                    'طول الكلمة',
+                    'الحركة الأقوى',
+                    'نوع الحبر'
+                ],
+                answer: 'الحركة الأقوى'
+            },
+            {
+                id: 84,
+                type: 'truefalse',
+                question: 'تُحذف ياء الاسم المنقوص (مثل: قاضٍ) إذا كان "مفرداً" في حالتي الرفع والجر.',
+                answer: 'صح'
+            },
+            {
+                id: 85,
+                type: 'multiple',
+                question: 'تُرسم الألف ممدودة "علوية" (مثل: دنا) إذا كان أصلها:',
+                options: [
+                    'ياءً',
+                    'واواً',
+                    'ألفاً'
+                ],
+                answer: 'واواً'
+            },
+            {
+                id: 86,
+                type: 'truefalse',
+                question: 'يفرق الإملاء دلالياً بين "ندا" (مذكر) و"ندى" (مؤنث).',
+                answer: 'صح'
+            },
+            {
+                id: 87,
+                type: 'multiple',
+                question: 'قاعدة "كراهة توالي الأمثال" تعني منع كتابة:',
+                options: [
+                    'حرفين مختلفين',
+                    'حرفين متطابقين متتاليين',
+                    'أكثر من ثلاث كلمات'
+                ],
+                answer: 'حرفين متطابقين متتاليين'
+            },
+            {
+                id: 88,
+                type: 'truefalse',
+                question: 'تُرسم الهمزة المتوسطة على السطر (مثل: أصدقاءنا) في حالة النصب.',
+                answer: 'صح'
+            },
+            {
+                id: 89,
+                type: 'multiple',
+                question: 'الحركة الأقوى في سلم الحركات الإملائية هي:',
+                options: [
+                    'الضمة',
+                    'الكسرة',
+                    'الفتحة'
+                ],
+                answer: 'الكسرة'
+            },
+            {
+                id: 90,
+                type: 'truefalse',
+                question: 'علم الدلالة يساعد في التمييز بين "عَال" (مفرد) و"عُلى" (جمع) إملائياً.',
+                answer: 'صح'
+            },
+
+            // مشكلات الإملاء في اللغة العربية (91-100)
+            {
+                id: 91,
+                type: 'multiple',
+                question: 'أكبر معضلة في الإملاء العربي هي:',
+                options: [
+                    'حرف الميم',
+                    'الهمزة',
+                    'اللام القمرية'
+                ],
+                answer: 'الهمزة'
+            },
+            {
+                id: 92,
+                type: 'truefalse',
+                question: 'أضيفت الألف في كلمة "مائة" قديماً لتمييزها عن كلمات مثل "فئة" قبل اختراع النقط.',
+                answer: 'صح'
+            },
+            {
+                id: 93,
+                type: 'multiple',
+                question: 'يُقترح في الإملاء الحديث كتابة "مئة" بدون ألف لـ:',
+                options: [
+                    'تحقيق التوافق بين النطق والمكتوب',
+                    'اختصار الوقت',
+                    'تجميل الخط'
+                ],
+                answer: 'تحقيق التوافق بين النطق والمكتوب'
+            },
+            {
+                id: 94,
+                type: 'truefalse',
+                question: 'من مشكلات الإملاء رسم الحرف الواحد بأكثر من شكل كالهمزة.',
+                answer: 'صح'
+            },
+            {
+                id: 95,
+                type: 'multiple',
+                question: 'أول من فطن لقانون "توالي الأمثال" في الخط هو:',
+                options: [
+                    'سيبويه',
+                    'ابن درستويه',
+                    'الفراء'
+                ],
+                answer: 'الفراء'
+            },
+            {
+                id: 96,
+                type: 'truefalse',
+                question: 'ازدواجية اللغة بين الفصحى والعامية تؤدي لخلط المتعلمين بين الأصوات المتشابهة.',
+                answer: 'صح'
+            },
+            {
+                id: 97,
+                type: 'multiple',
+                question: 'وضع الخليل بن أحمد رمز الهمزة لتحقيق:',
+                options: [
+                    'التباعد بين الكلمات',
+                    'التطابق بين الكتابة والنطق',
+                    'سرعة الكتابة'
+                ],
+                answer: 'التطابق بين الكتابة والنطق'
+            },
+            {
+                id: 98,
+                type: 'truefalse',
+                question: 'المجمع اللغوي السوري يرى وجوب مطابقة المنطوق للمكتوب ما أمكن.',
+                answer: 'صح'
+            },
+            {
+                id: 99,
+                type: 'multiple',
+                question: 'يكتب المصريون الألف المقصورة "ياءً منقوطة" (مثل: علي) وهذا ناتج عن:',
+                options: [
+                    'نظام المخطوطات القديم',
+                    'قاعدة حديثة',
+                    'خطأ مطبعي'
+                ],
+                answer: 'نظام المخطوطات القديم'
+            },
+            {
+                id: 100,
+                type: 'truefalse',
+                question: 'تُحذف همزة الوصل خطاً في "البسملة" الكاملة فقط.',
+                answer: 'صح'
+            },
+
+            // أنواع الرسم العربي (101-110)
+            {
+                id: 101,
+                type: 'multiple',
+                question: 'الرسم الذي لا يجوز المساس به أو تعديله هو:',
+                options: [
+                    'الرسم الإملائي الحديث',
+                    'الرسم القرآني (العثماني)',
+                    'رسم المخطوطات العلمية'
+                ],
+                answer: 'الرسم القرآني (العثماني)'
+            },
+            {
+                id: 102,
+                type: 'truefalse',
+                question: 'الرسم القرآني "موقوف" وتراث أمة وكتاب عقيدة.',
+                answer: 'صح'
+            },
+            {
+                id: 103,
+                type: 'multiple',
+                question: 'كلمة "يأيها" تُكتب في المصحف:',
+                options: [
+                    'منفصلة (يا أيها)',
+                    'متصلة (يأيها)',
+                    'بدون ألف'
+                ],
+                answer: 'متصلة (يأيها)'
+            },
+            {
+                id: 104,
+                type: 'truefalse',
+                question: 'أفتى الإمام مالك بمنع كتابة المصحف على ما أحدثه الناس من قواعد هجاء.',
+                answer: 'صح'
+            },
+            {
+                id: 105,
+                type: 'multiple',
+                question: 'الفرق بين الرسمين يظهر في حذف أو زيادة أحرف لغرض:',
+                options: [
+                    'الزينة',
+                    'التوقيف الشرعي في المصحف',
+                    'السرعة'
+                ],
+                answer: 'التوقيف الشرعي في المصحف'
+            },
+            {
+                id: 106,
+                type: 'truefalse',
+                question: 'يُعتبر توحيد رسم "الضاد والظاء" دعوة مرفوضة لفساد المعنى الدلالي.',
+                answer: 'صح'
+            },
+            {
+                id: 107,
+                type: 'multiple',
+                question: 'الرسم القرآني يعتمد أحياناً على:',
+                options: [
+                    'تسهيل الهمز (لهجة قريش)',
+                    'تشديد كل الحروف',
+                    'الخط الكوفي فقط'
+                ],
+                answer: 'تسهيل الهمز (لهجة قريش)'
+            },
+            {
+                id: 108,
+                type: 'truefalse',
+                question: 'يُمنع الاجتهاد في رسم المصحف حتى لو كان لغرض التعليم.',
+                answer: 'صح'
+            },
+            {
+                id: 109,
+                type: 'multiple',
+                question: 'كتابة "مائة" بالألف هي من خصائص:',
+                options: [
+                    'الإملاء الحديث فقط',
+                    'الرسم القرآني والقديم',
+                    'الصحافة'
+                ],
+                answer: 'الرسم القرآني والقديم'
+            },
+            {
+                id: 110,
+                type: 'truefalse',
+                question: 'الرسم الإملائي الحديث يهدف لتجاوز الحالات الشاذة وجعل القواعد مطردة.',
+                answer: 'صح'
+            },
+
+            // الإملاء والألف (111-120)
+            {
+                id: 111,
+                type: 'multiple',
+                question: 'تُزاد الألف (ألف الإطلاق) في نهاية:',
+                options: [
+                    'الأسماء',
+                    'الأبيات الشعرية عند الحاجة',
+                    'الأفعال المضارعة المرفوعة'
+                ],
+                answer: 'الأبيات الشعرية عند الحاجة'
+            },
+            {
+                id: 112,
+                type: 'truefalse',
+                question: 'تُحذف ألف "ما" الاستفهامية إذا سبقت بحرف جر (مثل: بِمَ، عَمَّ).',
+                answer: 'صح'
+            },
+            {
+                id: 113,
+                type: 'multiple',
+                question: 'تُكتب الألف "سفلية" (مقصورة) في الأفعال:',
+                options: [
+                    'الثلاثية التي أصلها واو',
+                    'فوق الثلاثية (الرباعي والخماسي) مطلقاً (مثل: أعطى)',
+                    'التي تنتهي بهمزة'
+                ],
+                answer: 'فوق الثلاثية (الرباعي والخماسي) مطلقاً (مثل: أعطى)'
+            },
+            {
+                id: 114,
+                type: 'truefalse',
+                question: 'تُكتب الألف ممدودة في كلمة "لكن".',
+                answer: 'خطأ',
+                explanation: 'تُنطق ولا تُكتب'
+            },
+            {
+                id: 115,
+                type: 'multiple',
+                question: 'تُزاد "الألف الفارقة" بعد واو الجماعة في:',
+                options: [
+                    'جمع المذكر السالم (مهندسو)',
+                    'الأفعال (مثل: لم يفعلوا)',
+                    'الأسماء الخمسة'
+                ],
+                answer: 'الأفعال (مثل: لم يفعلوا)'
+            },
+            {
+                id: 116,
+                type: 'truefalse',
+                question: 'تُحذف الألف خطاً في كلمات (إله، طه، الرحمن) بالرسم القرآني.',
+                answer: 'صح'
+            },
+            {
+                id: 117,
+                type: 'multiple',
+                question: 'تُكتب الألف مقصورة سفلية إذا كان قبلها ياء في اسم العلم:',
+                options: [
+                    'يحيى',
+                    'ثريا',
+                    'دنيا'
+                ],
+                answer: 'يحيى'
+            },
+            {
+                id: 118,
+                type: 'truefalse',
+                question: 'تُكتب "ها أنذا" بحذف ألف "أنا" لتجنب توالي ثلاث ألفات.',
+                answer: 'صح'
+            },
+            {
+                id: 119,
+                type: 'multiple',
+                question: 'كلمة "إذن" الصواب كتابتها بالنون لـ:',
+                options: [
+                    'تمييزها عن "إذا" الشرطية',
+                    'تسهيل النطق',
+                    'اتباع رسم المصحف'
+                ],
+                answer: 'تمييزها عن "إذا" الشرطية'
+            },
+            {
+                id: 120,
+                type: 'truefalse',
+                question: 'تُكتب الألف في أسماء الأعلام الأعجمية (مثل: أمريكا، آسيا) ممدودة غالباً.',
+                answer: 'صح'
+            }
+        ];
+
+        // تهيئة إمكانية الوصول
+        function initializeAccessibility() {
+            // تحسين التنقل بلوحة المفاتيح
+            document.addEventListener('keydown', handleKeyboardNavigation);
+            
+            // إضافة ARIA labels
+            enhanceARIALabels();
+            
+            // تحسين التباين في الوضع الليلي
+            enhanceContrast();
+            
+            // إضافة announcements للقارئ الشاشة
+            setupLiveRegions();
+        }
+
+        // معالجة التنقل بلوحة المفاتيح
+        function handleKeyboardNavigation(event) {
+            // فقط عندما تكون شاشة الامتحان نشطة
+            if (!screens.exam.classList.contains('active')) return;
+            
+            switch(event.key) {
+                case 'ArrowRight':
+                    event.preventDefault();
+                    document.getElementById('prevBtn').click();
+                    break;
+                case 'ArrowLeft':
+                    event.preventDefault();
+                    document.getElementById('nextBtn').click();
+                    break;
+                case ' ':
+                case 'Enter':
+                    const focused = document.activeElement;
+                    if (focused.classList.contains('option')) {
+                        event.preventDefault();
+                        focused.click();
+                    }
+                    break;
+                case 'Escape':
+                    if (!document.getElementById('confirmModal').hidden) {
+                        document.getElementById('cancelEndBtn').click();
+                    }
+                    break;
+            }
+        }
+
+        // تحسين تسميات ARIA
+        function enhanceARIALabels() {
+            // أزرار التنقل
+            document.getElementById('prevBtn').setAttribute('aria-label', 'السؤال السابق');
+            document.getElementById('nextBtn').setAttribute('aria-label', 'السؤال التالي');
+            
+            // خيارات الأسئلة
+            document.querySelectorAll('.option').forEach((option, index) => {
+                option.setAttribute('role', 'radio');
+                option.setAttribute('aria-checked', 'false');
+                option.setAttribute('tabindex', '0');
+                option.setAttribute('aria-label', `الخيار ${index + 1}`);
+            });
+            
+            // شبكة التنقل بين الأسئلة
+            document.querySelectorAll('.question-nav-btn').forEach(btn => {
+                btn.setAttribute('aria-label', `الانتقال إلى السؤال ${btn.textContent}`);
+            });
+        }
+
+        // تحديث تسميات ARIA ديناميكياً
+        function updateARIALabels() {
+            const options = document.querySelectorAll('.option');
+            options.forEach((option, index) => {
+                const isSelected = option.classList.contains('selected');
+                option.setAttribute('aria-checked', isSelected);
+                option.setAttribute('aria-label', `${option.querySelector('.option-text').textContent} - ${isSelected ? 'محدد' : 'غير محدد'}`);
+            });
+            
+            // تحديث حالة السؤال للقارئ الشاشة
+            const questionStatus = document.getElementById('questionStatus');
+            const statusText = questionStatus.textContent.includes('جديد') ? 'سؤال جديد' : 'تم الإجابة';
+            questionStatus.setAttribute('aria-live', 'polite');
+            questionStatus.textContent = statusText;
+        }
+
+        // تحسين التباين
+        function enhanceContrast() {
+            const isDark = document.body.getAttribute('data-theme') === 'dark';
+            
+            if (isDark) {
+                // زيادة التباين في الوضع الليلي
+                document.documentElement.style.setProperty('--primary-color', '#63b3ed');
+                document.documentElement.style.setProperty('--secondary-color', '#90cdf4');
+                document.documentElement.style.setProperty('--text-color', '#f7fafc');
+            }
+        }
+
+        // إعداد مناطق البث المباشر للقارئ الشاشة
+        function setupLiveRegions() {
+            // إنشاء منطقة بث للتنبيهات
+            const liveRegion = document.createElement('div');
+            liveRegion.id = 'live-region';
+            liveRegion.className = 'sr-only';
+            liveRegion.setAttribute('aria-live', 'polite');
+            liveRegion.setAttribute('aria-atomic', 'true');
+            document.body.appendChild(liveRegion);
+            
+            window.announceToScreenReader = function(message) {
+                liveRegion.textContent = message;
+                setTimeout(() => {
+                    liveRegion.textContent = '';
+                }, 1000);
+            };
+        }
+
+        // بدء الامتحان مع معالجة الأخطاء
+        const startExam = ErrorHandler.wrapFunction(function() {
+            showLoading('جاري تحضير الامتحان...');
+            
+            setTimeout(() => {
+                try {
+                    screens.start.classList.remove('active');
+                    screens.exam.classList.add('active');
+                    
+                    // تحديث ARIA
+                    screens.start.setAttribute('hidden', 'true');
+                    screens.exam.removeAttribute('hidden');
+                    
+                    // تهيئة المتغيرات
+                    startTime = new Date();
+                    timeLeft = EXAM_DURATION;
+                    examCompleted = false;
+                    currentQuestionIndex = 0;
+                    
+                    // اختيار الأسئلة
+                    if (!selectRandomQuestions()) {
+                        throw new Error('فشل في تحميل الأسئلة');
+                    }
+                    
+                    shuffleAllOptions();
+                    startTimer();
+                    loadQuestion(currentQuestionIndex);
+                    updateQuestionsGrid();
+                    updateUnansweredAlert();
+                    
+                    // إعلان للقارئ الشاشة
+                    announceToScreenReader('بدأ الامتحان، لديك 60 دقيقة للإجابة على 30 سؤالاً');
+                    
+                } catch (error) {
+                    ErrorHandler.showError('حدث خطأ أثناء بدء الامتحان', error);
+                    returnToStartScreen();
+                } finally {
+                    hideLoading();
+                }
+            }, 500);
+        }, 'بدء الامتحان');
+
+        // تحميل السؤال مع تحسينات الأداء
+        const loadQuestion = ErrorHandler.wrapFunction(function(index) {
+            const question = shuffledQuestions[index];
+            
+            if (!question) {
+                throw new Error(`السؤال رقم ${index + 1} غير موجود`);
+            }
+            
+            // تحديث عناصر الواجهة
+            document.getElementById('questionNumber').textContent = `س${index + 1}`;
+            document.getElementById('questionText').textContent = question.question;
+            
+            // تحديث شريط التقدم
+            const progress = ((index + 1) / shuffledQuestions.length) * 100;
+            document.getElementById('progressFill').style.width = `${progress}%`;
+            document.getElementById('progressText').textContent = 
+                `السؤال ${index + 1} من ${shuffledQuestions.length}`;
+            document.getElementById('progressPercent').textContent = `${Math.round(progress)}%`;
+            
+            // تحديث أزرار التنقل
+            document.getElementById('prevBtn').disabled = index === 0;
+            document.getElementById('nextBtn').textContent = 
+                index === shuffledQuestions.length - 1 ? 'إنهاء الاختبار' : 'التالي';
+            
+            // إنشاء الخيارات
+            createOptions(question, index);
+            
+            // تحديث الحالة
+            updateQuestionStatus(index);
+            updateQuestionsGrid();
+            updateARIALabels();
+            
+            // الحفظ التلقائي
+            autoSaveProgress();
+            
+            // إعلان للقارئ الشاشة
+            announceToScreenReader(`السؤال رقم ${index + 1} من ${shuffledQuestions.length}`);
+            
+        }, 'تحميل السؤال');
+
+        // إنشاء الخيارات مع التخزين المؤقت
+        function createOptions(question, questionIndex) {
+            const optionsContainer = document.getElementById('optionsContainer');
+            const fragment = document.createDocumentFragment();
+            
+            question.shuffledOptions.forEach((option, optionIndex) => {
+                const cacheKey = `option_${question.id}_${optionIndex}`;
+                let optionElement = optionCache.get(cacheKey);
+                
+                if (!optionElement) {
+                    optionElement = document.createElement('div');
+                    optionElement.className = 'option';
+                    optionElement.setAttribute('role', 'radio');
+                    optionElement.setAttribute('tabindex', '0');
+                    
+                    const marker = document.createElement('div');
+                    marker.className = 'option-marker';
+                    marker.textContent = String.fromCharCode(1632 + optionIndex + 1);
+                    
+                    const text = document.createElement('div');
+                    text.className = 'option-text';
+                    text.textContent = option;
+                    
+                    optionElement.appendChild(marker);
+                    optionElement.appendChild(text);
+                    
+                    // إضافة حدث النقرة
+                    optionElement.addEventListener('click', () => selectOption(optionIndex));
+                    
+                    // إضافة أحداث لوحة المفاتيح
+                    optionElement.addEventListener('keydown', (e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            selectOption(optionIndex);
+                        }
+                    });
+                    
+                    optionCache.set(cacheKey, optionElement);
+                }
+                
+                // تحديث حالة التحديد
+                const isSelected = userAnswers[questionIndex] === optionIndex;
+                optionElement.classList.toggle('selected', isSelected);
+                optionElement.setAttribute('aria-checked', isSelected);
+                
+                // استنساخ العنصر من الذاكرة المؤقتة
+                fragment.appendChild(optionElement.cloneNode(true));
+            });
+            
+            // استبدال المحتوى بكفاءة
+            optionsContainer.innerHTML = '';
+            optionsContainer.appendChild(fragment);
+        }
+
+        // حساب النتائج بدقة
+        const calculateResults = ErrorHandler.wrapFunction(function() {
+            let correctCount = 0;
+            let wrongCount = 0;
+            let unansweredCount = 0;
+            
+            shuffledQuestions.forEach((question, index) => {
+                const userAnswer = userAnswers[index];
+                
+                if (userAnswer === null) {
+                    unansweredCount++;
+                } else if (userAnswer === question.shuffledCorrect) {
+                    correctCount++;
+                } else {
+                    wrongCount++;
+                }
+            });
+            
+            const totalQuestions = shuffledQuestions.length;
+            const scorePercentage = totalQuestions > 0 ? 
+                (correctCount / totalQuestions) * 100 : 0;
+            
+            // تحديث واجهة النتائج
+            updateResultsUI(correctCount, wrongCount, unansweredCount, scorePercentage);
+            
+            // تحديث دائرة النتيجة
+            updateScoreCircle(scorePercentage);
+            
+        }, 'حساب النتائج');
+
+        // تحديث واجهة النتائج
+        function updateResultsUI(correct, wrong, unanswered, percentage) {
+            document.getElementById('finalScore').textContent = `${correct}/${shuffledQuestions.length}`;
+            document.getElementById('percentage').textContent = `${percentage.toFixed(1)}%`;
+            document.getElementById('correctAnswers').textContent = correct;
+            document.getElementById('wrongAnswers').textContent = wrong;
+            
+            // حساب التقدير
+            let gradeText = '';
+            let gradeColor = '';
+            
+            if (percentage >= 90) {
+                gradeText = 'امتياز';
+                gradeColor = 'var(--success-color)';
+            } else if (percentage >= 80) {
+                gradeText = 'جيد جداً';
+                gradeColor = '#2ecc71';
+            } else if (percentage >= 70) {
+                gradeText = 'جيد';
+                gradeColor = 'var(--secondary-color)';
+            } else if (percentage >= 60) {
+                gradeText = 'مقبول';
+                gradeColor = 'var(--warning-color)';
+            } else {
+                gradeText = 'راسب';
+                gradeColor = 'var(--accent-color)';
+            }
+            
+            document.getElementById('grade').textContent = gradeText;
+            document.getElementById('grade').style.color = gradeColor;
+            
+            // حساب الوقت المستغرق
+            const endTime = new Date();
+            const timeDiff = startTime ? Math.floor((endTime - startTime) / 1000) : 0;
+            const minutes = Math.floor(timeDiff / 60);
+            const seconds = timeDiff % 60;
+            document.getElementById('timeTaken').textContent = 
+                `${minutes}:${seconds.toString().padStart(2, '0')}`;
+        }
+
+        // تحديث دائرة النتيجة
+        function updateScoreCircle(percentage) {
+            const scoreCircle = document.getElementById('scoreCircle');
+            const circleLength = 800;
+            const offset = circleLength - (circleLength * (percentage / 100));
+            
+            // إضافة انتقال سلس
+            scoreCircle.style.transition = 'stroke-dashoffset 2s ease, stroke 1s ease';
+            scoreCircle.style.strokeDashoffset = offset;
+            
+            // تغيير اللون حسب النسبة
+            if (percentage >= 90) {
+                scoreCircle.style.stroke = '#9b59b6';
+            } else if (percentage >= 80) {
+                scoreCircle.style.stroke = 'var(--success-color)';
+            } else if (percentage >= 70) {
+                scoreCircle.style.stroke = '#2ecc71';
+            } else if (percentage >= 60) {
+                scoreCircle.style.stroke = 'var(--warning-color)';
+            } else {
+                scoreCircle.style.stroke = 'var(--accent-color)';
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            try {
+                // تهيئة الوضع الليلي
+                initializeDarkMode();
+                
+                // تهيئة إمكانية الوصول
+                initializeAccessibility();
+                
+                // ربط الأحداث
+                initializeEventListeners();
+                
+                // إعداد زر التمرير للأعلى
+                setupScrollTop();
+                
+                // محاولة استعادة التقدم المحفوظ
+                attemptProgressRestore();
+                
+                console.log('تم تحميل التطبيق بنجاح');
+            } catch (error) {
+                ErrorHandler.showError('حدث خطأ أثناء تحميل التطبيق', error);
+            }
+        });
+
+        // محاولة استعادة التقدم
+        function attemptProgressRestore() {
+            const progress = tryRestoreProgress();
+            if (progress) {
+                // عرض خيار استعادة التقدم
+                if (confirm('هل تريد استعادة الامتحان السابق؟')) {
+                    restoreProgress(progress);
+                } else {
+                    clearAutoSave();
+                }
+            }
+        }
+
+        // استعادة التقدم
+        function restoreProgress(progress) {
+            // ... (تنفيذ استعادة التقدم) ...
+        }
+
+        // العودة إلى شاشة البداية
+        function returnToStartScreen() {
+            screens.exam.classList.remove('active');
+            screens.results.classList.remove('active');
+            screens.start.classList.add('active');
+            
+            screens.exam.setAttribute('hidden', 'true');
+            screens.results.setAttribute('hidden', 'true');
+            screens.start.removeAttribute('hidden');
+        }
+    </script>
+</body>
+</html>
